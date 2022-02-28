@@ -107,9 +107,9 @@ cal_summaries<-function(datasets,setting,platform='Mac',paral=TRUE){
 		# simulated_summaries<-cbind(sample_mads=sample_mads)
 	}
 	if(setting==4){
-		sample_medians<-rowMedians(datasets);
+		sample_means<-rowMeans(datasets);
 		sample_mads<-rowWeightedMads(datasets);
-		simulated_summaries<-cbind(sample_medians=sample_medians,sample_mads=sample_mads)	
+		simulated_summaries<-cbind(sample_means=sample_means,sample_mads=sample_mads)	
 	}
 	return(simulated_summaries)
 }
@@ -155,7 +155,7 @@ test_percentile_cal<-function(ACC_parameter_values,theta0){
 	mean(2*mean(ACC_parameter_values)-ACC_parameter_values<theta0)
 }
 
-ABC_ACC_results_summary<-function(results,type='ABC',w=NULL,true_params=NULL,param_est,CI_alpha=NULL,post_sample=NULL){
+ABC_ACC_results_summary<-function(results,type='ABC',w=NULL,true_params=NULL,param_est,CI_alpha=NULL,post_sample=NULL,method_i=0){
 ### What is it for? ###
 # Summaries the results of ABC/ACC algorithms by calculating the mean estimates, variance estimates, ESS of importance weights, two-sided credible/confidence bounds, one-sided credible/confidence bound, success/failure of covering true parameters by each interval, and the covering by two-dimension credible/confidence. 
 
@@ -235,10 +235,16 @@ ABC_ACC_results_summary<-function(results,type='ABC',w=NULL,true_params=NULL,par
 			wid_vol<-pi*2/N*qf(1-CI_alpha,2,N-1)*det(sqrtmatrix(cov_vec)) # As if it's multivaraite normal
 		}
 	}
+
+# if(N==2500&(method_i==2||method_i==4)) browser()
+# par(mfrow=c(6,3))
+# c
+# plot(x=results$parameters[,1],y=results$parameters[,2],pch=20,main=type)
+# points(true_params[1],true_params[2],pch=21,col=2)
+
 	# return(list(mean_vec=mean_vec,var_vec=var_vec,IS_ESS=IS_ESS,twoside_CI=twoside_CI,twoD_CR=twoD_CR))
 	return(list(mean_vec=mean_vec,var_vec=var_vec,quant_vec=quant_vec,IS_ESS=IS_ESS,coverage=coverage,wid_vol=wid_vol))
-}
-
+} 
 
 
 Process_all_output<-function(indices_all,output_all,param_est){
@@ -288,7 +294,7 @@ Process_all_output<-function(indices_all,output_all,param_est){
 ######################################
 # Main function running experiment	
 ######################################
-Example1_main<-function(test_size,parameter_true,tested_observations_all,parameter_setting,posterior_sample=NULL,N,platform,n_all,p_all,CI_alpha=0.05,divide=FALSE,divide_paral=FALSE,prior_choice='jeffery',prior_location=NULL,prior_scale=NULL){
+Example1_main<-function(test_size,parameter_true,tested_observations_all,parameter_setting,posterior_sample=NULL,N,platform,n_all,p_all,CI_alpha=0.05,divide=FALSE,divide_paral=FALSE,prior_choice='jeffery',prior_location=NULL,prior_scale=NULL,prior_df=NULL){
 ### What is it for? ###
 # Run the experiment in example 1 of Thorton, Li and Xie (2018) to compare three algorithms (ABC, ACC with two initial distributions) under different parameter/summary settings
 
@@ -363,7 +369,7 @@ Example1_main<-function(test_size,parameter_true,tested_observations_all,paramet
 				simulated_parameters<-cbind(simulate_from_r2(N,subgroup_medians),tested_parameters[data_i,2])
 				proposal_densities<-density_r2(simulated_parameters[,1],subgroup_medians)
 				if(prior_choice=='jeffery') prior_densities<-rep(1,N)
-				if(prior_choice=='t4') prior_densities<-dt((simulated_parameters[,1]-prior_location)/prior_scale,df=4)
+				if(prior_choice=='Cauchy') prior_densities<-dt((simulated_parameters[,1]-prior_location)/prior_scale,df=prior_df)
 			}
 			if(parameter_setting==2){
 				param_est<-1
@@ -371,7 +377,7 @@ Example1_main<-function(test_size,parameter_true,tested_observations_all,paramet
 				simulated_parameters<-cbind(simulate_from_r2(N,subgroup_means),tested_parameters[data_i,2])
 				proposal_densities<-density_r2(simulated_parameters[,1],subgroup_means)
 				if(prior_choice=='jeffery') prior_densities<-rep(1,N)
-				if(prior_choice=='t4') prior_densities<-dt((simulated_parameters[,1]-prior_location)/prior_scale,df=4)
+				if(prior_choice=='Cauchy') prior_densities<-dt((simulated_parameters[,1]-prior_location)/prior_scale,df=prior_df)
 			}
 			if(parameter_setting==3){
 				param_est<-2
@@ -380,15 +386,15 @@ Example1_main<-function(test_size,parameter_true,tested_observations_all,paramet
 				simulated_parameters<-cbind(tested_parameters[data_i,1],simulate_from_r2(N,subgroup_mads,nonnegative=TRUE))
 				proposal_densities<-density_r2(simulated_parameters[,2],subgroup_mads,nonnegative=TRUE)
 				if(prior_choice=='jeffery') prior_densities<-1/simulated_parameters[,2]
-				if(prior_choice=='t4') prior_densities<-dt((log(simulated_parameters[,2])-log(prior_location))/prior_scale,df=4)/simulated_parameters[,2]
+				if(prior_choice=='Cauchy') prior_densities<-dt((log(simulated_parameters[,2])-log(prior_location))/prior_scale,df=prior_df)/simulated_parameters[,2]
 			}
 			if(parameter_setting==4){
 				param_est<-1:2; twoD_covering<-TRUE
-				subgroup_medians<-unlist(lapply(subgroup,median)) # a N*1 subgroup_medians
+				subgroup_mean<-unlist(lapply(subgroup,mean)) # a N*1 subgroup_mean
 				subgroup_mads<-unlist(lapply(subgroup,mad))/1.4826 # a N*1 subgroup standard deviation
-				simulated_parameters<-cbind(simulate_from_r2(N,subgroup_medians),simulate_from_r2(N,subgroup_mads,nonnegative=TRUE))
-				proposal_densities<-density_r2(simulated_parameters[,1],subgroup_medians)*density_r2(simulated_parameters[,2],subgroup_mads,nonnegative=TRUE)
-				if(prior_choice!='jeffery') prior_densities<-dt((simulated_parameters[,1]-prior_location[1])/prior_scale[1],df=4)*dt((log(simulated_parameters[,2])-log(prior_location[2]))/prior_scale[2],df=4)/simulated_parameters[,2]
+				simulated_parameters<-cbind(simulate_from_r2(N,subgroup_mean),simulate_from_r2(N,subgroup_mads,nonnegative=TRUE))
+				proposal_densities<-density_r2(simulated_parameters[,1],subgroup_mean)*density_r2(simulated_parameters[,2],subgroup_mads,nonnegative=TRUE)
+				if(prior_choice!='jeffery') prior_densities<-dt((simulated_parameters[,1]-prior_location[1])/prior_scale[1],df=prior_df)*dt((log(simulated_parameters[,2])-log(prior_location[2]))/prior_scale[2],df=prior_df)/simulated_parameters[,2]
 				if(prior_choice=='jeffery') prior_densities<-1/simulated_parameters[,2]
 			}
 
@@ -430,7 +436,7 @@ Example1_main<-function(test_size,parameter_true,tested_observations_all,paramet
 				results_ISregABC<-regABC(reference_tables,t(tested_summary),tolerance_percentile=tolerance_percentile,paral=FALSE,platform=platform,weights_of_sample=weights_of_sample)
 				results_ISregABC<-results_ISregABC[[1]] # This only deals with one observed dataset
 				importance_weights<-results_ISregABC$weights
-				results_summary<-ABC_ACC_results_summary(results_ISregABC,type='ABC',w=importance_weights,true_params=tested_value,param_est=param_est,CI_alpha=CI_alpha,post_sample=posterior_sample_i)
+				results_summary<-ABC_ACC_results_summary(results_ISregABC,type='ABC',w=importance_weights,true_params=tested_value,param_est=param_est,CI_alpha=CI_alpha,post_sample=posterior_sample_i,method_i=method_i)
 
 				### This part is identical for all method_i ###
 				IS_ESSr_all[[method_i]][p_i,data_i]<-results_summary$IS_ESS
@@ -461,7 +467,7 @@ Example1_main<-function(test_size,parameter_true,tested_observations_all,paramet
 				method_i<-4
 				results_regACC<-regABC(reference_tables,t(tested_summary),tolerance_percentile=tolerance_percentile,paral=FALSE,platform=platform)
 				results_regACC<-results_regACC[[1]]
-				results_summary<-ABC_ACC_results_summary(results_regACC,type='ACC',w=NULL,true_params=tested_value,param_est=param_est,CI_alpha=CI_alpha)
+				results_summary<-ABC_ACC_results_summary(results_regACC,type='ACC',w=NULL,true_params=tested_value,param_est=param_est,CI_alpha=CI_alpha,method_i=method_i)
 
 				### This part is identical for all method_i ###
 				IS_ESSr_all[[method_i]][p_i,data_i]<-results_summary$IS_ESS
@@ -471,6 +477,9 @@ Example1_main<-function(test_size,parameter_true,tested_observations_all,paramet
 				coverage_all[[method_i]][p_i,data_i]<-results_summary$coverage
 				wid_vol_all[[method_i]][p_i,data_i]<-results_summary$wid_vol
 			}
+# browser()
+# IS_ESSr_all[[2]][,data_i]
+# c
 		##########################
 		#### Recrod running time ###
 		duration<-signif(proc.time()-start_time,2)

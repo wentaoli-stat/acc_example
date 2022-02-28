@@ -28,20 +28,18 @@ platform<-'Win'
 ### Experiment variables ###
 # test_size<-500; N<-5*10^5; 
 test_size<-1000; N<-5e4; n_all<-400
-#p_all<-signif2(seq(0.005,0.5,length=21))
 p_all<-signif2(c(0.005,0.05,0.1,0.2,0.4))
-parameter_true<-c(location=10,scale=0.55); CI_alpha<-0.95 # Data model is Cauchy(location_cubicrt,scale_sqr)
-prior_scale<-3; prior_location<-parameter_true[2]
-number_prior<-length(prior_scale)+1
+parameter_true<-c(location=10,scale=0.55); # Data model is Cauchy(location_cubicrt,scale_sqr)
 
 set.seed(100)
 tested_observations_all<-simulate_pseudo_datasets(matrix(rep(parameter_true,test_size),ncol=2,byrow=T),n_all[1]) # a test_size*n matrix
 tested_parameters<-matrix(rep(parameter_true,test_size),ncol=2,byrow=T) # a test_size*2 matrix
 
 
+
 logposterior_Cauchy<-function(params,obs){ 
 ### What is it for? ###
-# Output the logarithm of the unnormalized posterior density
+# Output the logarithm of the unnormalized posterior density; use Jeffrey's prior
 
 ### In and Out ###
 # Input: params - location and scale parameters. obs - a length-n vector containing the dataset
@@ -84,29 +82,30 @@ load(paste0('Cauchy_true_posterior_sample_',test_size,'rep_n400.RData'))
 ##########################
 # Experiments for 4.2 
 ##########################
-# Parameter settings include: 1 -- location unknown and scale known with median as summary, 2 -- location unknown and scale known with mean as summary, 3 -- location known and scale unknown with median absolute deviation (MAD) as summary, 4 -- both unknown.
+# Parameter settings include: 1 -- location unknown and scale known with median as summary, 2 -- location unknown and scale known with mean as summary, 3 -- location known and scale unknown with median absolute deviation (MAD) as summary, 4 -- both unknown with mean and MAD as summary
 # Parameter proposals include: 1 -- KDE of certain point estimates, e.g. median and MAD, 2 -- Cauchy distribution with given location and scale.
-# Choices of prior include: Student t distribution with degree of freedom 4 and scale parameter; Jeffrey prior for location and scale family, i.e. uniform over all location and uniform over all log-scale.
+# Choices of prior include: Cauchy distribution with scale parameter=10; Jeffrey prior for location and scale family, i.e. uniform over all location and uniform over all log-scale.
 
 ###########################################################################
 # Cauchy example: N1e5, test_size 1000 
 # parameter_setting 2:4
-# For setting 1,2,4: prior is uniform
-# For setting 3: prior is t4
+# For prior_set=2: prior is Jeffery
+# For prior_set=1: prior is Cauchy
 ###########################################################################
 
 
-CI_alpha<-0.95
+CI_alpha<-0.95; prior_set<-1
 raw_results_all<-list(list(0),list(0),list(0),list(0))
 dev.new()
-for(i in 2:2){
-	if(i!=2) prior_set<-2
-	if(i==2) prior_set<-1
+for(i in 2:4){
+	# if(i!=2) prior_set<-2
+	# if(i==2) prior_set<-1
 	if(i==1) {parameter_setting<-1; prior_location<-parameter_true[1]}
 	if(i==2) {parameter_setting<-2; prior_location<-parameter_true[1]}
 	if(i==3) {parameter_setting<-3; prior_location<-parameter_true[2]}
 	if(i==4) {parameter_setting<-4; prior_location<-parameter_true}
 	names(raw_results_all)[parameter_setting]<-paste0('setting_',parameter_setting)
+	prior_scale<-rep(10,length(prior_location))
 
 	##########################
 	# Set Random Seed 
@@ -114,7 +113,7 @@ for(i in 2:2){
 	set.seed(100)
 	
 	if(prior_set==1){
-		tmp<-Example1_main(test_size,parameter_true,tested_observations_all=tested_observations_all,parameter_setting,posterior_sample=sample_posterior,N=N,platform=platform,n_all=n_all,p_all=p_all,CI_alpha=CI_alpha,divide=TRUE,prior_choice='t4',prior_location=prior_location,prior_scale=prior_scale)
+		tmp<-Example1_main(test_size,parameter_true,tested_observations_all=tested_observations_all,parameter_setting,posterior_sample=sample_posterior,N=N,platform=platform,n_all=n_all,p_all=p_all,CI_alpha=CI_alpha,divide=TRUE,prior_choice='Cauchy',prior_location=prior_location,prior_scale=prior_scale,prior_df=1)
 		raw_results_all[[parameter_setting]]<-tmp
 	}
 	if(prior_set==2){
@@ -122,6 +121,16 @@ for(i in 2:2){
 		raw_results_all[[parameter_setting]]<-tmp
 	}
 }
+
+# For acceptance rate = c(0.005,0.05,0.1,0.2,0.4)
+signif2(rowMeans((raw_results_all[[i]]$coverage_all)[[2]])) # coverage of IS-ABC
+
+signif2(rowMeans((raw_results_all[[i]]$coverage_all)[[4]])) # coverage of ACC
+
+signif2(rowMeans((raw_results_all[[i]]$wid_vol_all)[[2]])) # volume of IS-ABC
+
+signif2(rowMeans((raw_results_all[[i]]$wid_vol_all)[[4]])) # volume of ACC
+
 
 ###########################################################################
 # CI_alpha<-0.95
